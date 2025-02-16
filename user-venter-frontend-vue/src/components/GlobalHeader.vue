@@ -18,7 +18,7 @@
       <a-col flex="80px">
         <div class="user-login-status">
           <div v-if="store.loginUser.id">
-            {{ store.loginUser.userName }}
+            {{ store.loginUser.userAccount }}
           </div>
           <div v-else>
             <a-button type="primary" @click="handleLogin"> 登录 </a-button>
@@ -75,7 +75,7 @@ const items = ref<MenuProps["items"]>([
     title: "用户注册",
   },
   {
-    key: "/admin/userManage",
+    key: "/user/userManage",
     icon: () => h(CrownOutlined),
     label: "用户管理",
     title: "用户管理",

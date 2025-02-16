@@ -18,7 +18,7 @@ const routes: Array<RouteRecordRaw> = [
     component: () => import("../pages/user/UserRegister.vue"),
   },
   {
-    path: "/admin/userManage",
+    path: "/user/userManage",
     name: "userManage",
     component: () => import("../pages/user/userManage.vue"),
   },

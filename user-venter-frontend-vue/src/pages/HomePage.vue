@@ -21,7 +21,12 @@
         </div>
       </div>
 
-      <a-button type="primary" size="large" class="start-btn">
+      <a-button
+        type="primary"
+        size="large"
+        class="start-btn"
+        @click="goToRegister"
+      >
         开始使用
         <a-icon type="right" />
       </a-button>
@@ -29,7 +34,15 @@
   </div>
 </template>
 
-<script lang="ts" setup name="HomePage"></script>
+<script lang="ts" setup name="HomePage">
+import { useRouter } from "vue-router";
+
+const router = useRouter();
+
+const goToRegister = () => {
+  router.push("/user/register");
+};
+</script>
 
 <style scoped>
 #home {

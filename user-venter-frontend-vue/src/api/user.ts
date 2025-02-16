@@ -1,15 +1,14 @@
 import MyAxios from "../request";
 
 interface UserRegisterParams {
-  username: string;
-  password: string;
-  email: string;
-  phone: string;
+  userAccount: string;
+  userPassword: string;
+  checkPassword: string;
 }
 
 interface UserLoginParams {
-  username: string;
-  password: string;
+  userAccount: string;
+  userPassword: string;
 }
 
 interface UserLogoutParams {
@@ -17,7 +16,10 @@ interface UserLogoutParams {
 }
 
 interface GetUserListParams {
-  username: string;
+  userAccount: string;
+  email: string;
+  page: number;
+  pageSize: number;
 }
 
 // 用户注册
@@ -33,7 +35,7 @@ export const userRegister = async (params: UserRegisterParams) => {
 export const userLogin = async (params: UserLoginParams) => {
   return await MyAxios.request({
     url: "/api/user/login",
-    method: "post",
+    method: "POST",
     data: params,
   });
 };
@@ -50,7 +52,7 @@ export const userLogout = async (params: UserLogoutParams) => {
 // 获取当前用户信息
 export const getCurrentUserInfo = async () => {
   return await MyAxios.request({
-    url: "/api/user/info",
+    url: "/api/user/current",
     method: "get",
   });
 };
@@ -58,10 +60,13 @@ export const getCurrentUserInfo = async () => {
 // 获取用户列表
 export const getUserList = async (params: GetUserListParams) => {
   return await MyAxios.request({
-    url: "/api/user/list",
+    url: "/api/user/searchByPage",
     method: "get",
     params: {
-      username: params.username,
+      current: params.page,
+      pageSize: params.pageSize,
+      userAccount: params.userAccount,
+      email: params.email,
     },
   });
 };
@@ -75,5 +80,44 @@ export const deleteUser = async (id: string) => {
     headers: {
       "Content-Type": "application/json",
     },
+  });
+};
+
+// 导出用户列表
+export const exportUserList = async () => {
+  return await MyAxios.request({
+    url: "/api/user/export",
+    method: "get",
+    responseType: "blob",
+    headers: {
+      "Content-Type": "application/json",
+    },
+  });
+};
+
+// 添加用户
+export const addUser = async (params: any) => {
+  return await MyAxios.request({
+    url: "/api/user/add",
+    method: "post",
+    data: params,
+  });
+};
+
+// 编辑用户
+export const editUser = async (params: any) => {
+  return await MyAxios.request({
+    url: "/api/user/edit",
+    method: "post",
+    data: params,
+  });
+};
+
+// 切换用户状态
+export const updateUserStatus = async (params: any) => {
+  return await MyAxios.request({
+    url: "/api/user/updateStatus",
+    method: "post",
+    data: params,
   });
 };

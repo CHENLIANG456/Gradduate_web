@@ -14,14 +14,14 @@
         @finishFailed="onFinishFailed"
       >
         <a-form-item
-          name="username"
+          name="userAccount"
           :rules="[
             { required: true, message: '请输入用户名' },
             { min: 3, message: '用户名至少3个字符' },
           ]"
         >
           <a-input
-            v-model:value="formState.username"
+            v-model:value="formState.userAccount"
             size="large"
             placeholder="用户名"
           >
@@ -32,32 +32,14 @@
         </a-form-item>
 
         <a-form-item
-          name="email"
-          :rules="[
-            { required: true, message: '请输入邮箱' },
-            { type: 'email', message: '请输入有效的邮箱地址' },
-          ]"
-        >
-          <a-input
-            v-model:value="formState.email"
-            size="large"
-            placeholder="邮箱"
-          >
-            <template #prefix>
-              <MailOutlined class="site-form-item-icon" />
-            </template>
-          </a-input>
-        </a-form-item>
-
-        <a-form-item
-          name="password"
+          name="userPassword"
           :rules="[
             { required: true, message: '请输入密码' },
             { min: 6, message: '密码至少6个字符' },
           ]"
         >
           <a-input-password
-            v-model:value="formState.password"
+            v-model:value="formState.userPassword"
             size="large"
             placeholder="密码"
           >
@@ -68,14 +50,14 @@
         </a-form-item>
 
         <a-form-item
-          name="confirmPassword"
+          name="checkPassword"
           :rules="[
             { required: true, message: '请确认密码' },
             { validator: validateConfirmPassword },
           ]"
         >
           <a-input-password
-            v-model:value="formState.confirmPassword"
+            v-model:value="formState.checkPassword"
             size="large"
             placeholder="确认密码"
           >
@@ -106,42 +88,45 @@
 
 <script lang="ts" setup>
 import { reactive, computed } from "vue";
-import {
-  UserOutlined,
-  LockOutlined,
-  MailOutlined,
-} from "@ant-design/icons-vue";
+import { UserOutlined, LockOutlined } from "@ant-design/icons-vue";
 import { message } from "ant-design-vue";
 import { useRouter } from "vue-router";
+import { userRegister } from "@/api/user";
 
 interface FormState {
-  username: string;
-  email: string;
-  password: string;
-  confirmPassword: string;
+  userAccount: string;
+  checkPassword: string;
+  userPassword: string;
 }
 
 const router = useRouter();
 
 const formState = reactive<FormState>({
-  username: "",
-  email: "",
-  password: "",
-  confirmPassword: "",
+  userAccount: "",
+  userPassword: "",
+  checkPassword: "",
 });
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const validateConfirmPassword = async (_rule: any, value: string) => {
-  if (value !== formState.password) {
-    throw new Error("两次输入的密码不一致");
+  if (value !== formState.userPassword) {
+    throw new Error("两次输入的密码不一致"); // 抛出错误
   }
 };
 
 const onFinish = async (values: any) => {
   try {
-    // 这里添加注册 API 调用
-    console.log("Success:", values);
-    message.success("注册成功！");
-    router.push("/user/login");
+    const res = await userRegister({
+      userAccount: values.userAccount,
+      userPassword: values.userPassword,
+      checkPassword: values.checkPassword,
+    });
+    if (res.data.code === 0) {
+      message.success("注册成功！");
+      router.push("/user/login");
+    } else {
+      message.error(res.data.description || "注册失败");
+    }
   } catch (error) {
     message.error("注册失败，请重试");
   }
@@ -153,10 +138,9 @@ const onFinishFailed = (errorInfo: any) => {
 
 const disabled = computed(() => {
   return !(
-    formState.username &&
-    formState.email &&
-    formState.password &&
-    formState.confirmPassword
+    formState.userAccount &&
+    formState.userPassword &&
+    formState.checkPassword
   );
 });
 </script>

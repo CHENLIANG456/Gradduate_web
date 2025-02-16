@@ -1,5 +1,5 @@
 <template>
-  <div class="login-container">
+  <div id="login-container">
     <div class="login-box">
       <div class="login-header">
         <h2>CBCT 影像优化系统</h2>
@@ -9,15 +9,16 @@
         :model="formState"
         name="normal_login"
         class="login-form"
-        @finish="onFinish"
+        @finish="handleSubmit"
         @finishFailed="onFinishFailed"
       >
         <a-form-item
-          name="username"
+          label="用户名"
+          name="userAccount"
           :rules="[{ required: true, message: '请输入用户名' }]"
         >
           <a-input
-            v-model:value="formState.username"
+            v-model:value="formState.userAccount"
             size="large"
             placeholder="用户名"
           >
@@ -28,11 +29,15 @@
         </a-form-item>
 
         <a-form-item
-          name="password"
-          :rules="[{ required: true, message: '请输入密码' }]"
+          label="密码"
+          name="userPassword"
+          :rules="[
+            { required: true, message: '请输入密码' },
+            { min: 6, message: '密码长度至少为6位' },
+          ]"
         >
           <a-input-password
-            v-model:value="formState.password"
+            v-model:value="formState.userPassword"
             size="large"
             placeholder="密码"
           >
@@ -69,32 +74,88 @@
 </template>
 
 <script lang="ts" setup>
-import { reactive, computed } from "vue";
+import { reactive, computed, onMounted, onUnmounted } from "vue";
 import { UserOutlined, LockOutlined } from "@ant-design/icons-vue";
+import router from "@/router";
+import { message } from "ant-design-vue";
+import { userLogin } from "@/api/user";
+import { userLoginStore } from "@/store/useLoginUserStore";
+
+const userLoginStores = userLoginStore();
+
 interface FormState {
-  username: string;
-  password: string;
-  remember: boolean;
+  userAccount: string;
+  userPassword: string;
 }
+// 接收路由参数
 const formState = reactive<FormState>({
-  username: "",
-  password: "",
-  remember: true,
+  userAccount: "",
+  userPassword: "",
 });
-const onFinish = (values: any) => {
-  console.log("Success:", values);
+
+const handleSubmit = async (values: FormState) => {
+  try {
+    console.log("登录表单数据:", values); // 检查这里打印的数据
+
+    // 确保传递正确的参数格式
+    const res = await userLogin({
+      userAccount: formState.userAccount,
+      userPassword: formState.userPassword,
+    });
+
+    console.log("登录响应:", res); // 检查响应数据
+
+    if (res.data.code === 0 && res.data.data) {
+      await userLoginStores.getUserInfo();
+      message.success("登录成功");
+      router.push({
+        path: "/",
+      });
+    } else {
+      // 使用 ant-design-vue 的 message 组件替代 alert
+      message.error(res.data.description || "登录失败");
+    }
+  } catch (error: any) {
+    console.error("登录错误:", error); // 检查错误信息
+    message.error(error.description || "登录请求失败");
+  }
 };
 
 const onFinishFailed = (errorInfo: any) => {
-  console.log("Failed:", errorInfo);
+  console.log("表单验证失败:", errorInfo); // 添加日志
+  message.error("请检查输入信息是否正确"); // 使用更友好的提示
 };
+
 const disabled = computed(() => {
-  return !(formState.username && formState.password);
+  return !(formState.userAccount && formState.userPassword);
+});
+
+// 添加 ResizeObserver 警告处理
+onMounted(() => {
+  const resizeHandler = () => {
+    const resizeObserverError = console.error;
+    console.error = (...args: any) => {
+      if (
+        args.length > 0 &&
+        typeof args[0] === "string" &&
+        args[0].includes("ResizeObserver")
+      ) {
+        return;
+      }
+      resizeObserverError.apply(console, args);
+    };
+  };
+
+  window.addEventListener("error", resizeHandler);
+
+  onUnmounted(() => {
+    window.removeEventListener("error", resizeHandler);
+  });
 });
 </script>
 
 <style scoped>
-.login-container {
+#login-container {
   min-height: calc(100vh - 64px - 70px);
   display: flex;
   justify-content: center;
