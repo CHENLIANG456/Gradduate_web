@@ -1,68 +1,55 @@
 <template>
   <div id="artifact-detect">
     <div class="detect-container">
-      <div class="upload-section">
-        <h2>CBCT 图像伪影检测</h2>
-        <p class="description">上传 CBCT 图像进行金属伪影检测分析</p>
+      <h1>CBCT 图像伪影检测</h1>
+      <p class="subtitle">上传 CBCT 图像进行金属伪影检测分析</p>
 
-        <a-upload-dragger
-          v-model:fileList="fileList"
-          name="file"
-          :multiple="false"
-          :before-upload="beforeUpload"
-          @change="handleChange"
-          accept=".jpg,.jpeg,.png,.dcm"
-        >
-          <p class="ant-upload-drag-icon">
-            <InboxOutlined />
-          </p>
-          <p class="ant-upload-text">点击或拖拽文件到此区域上传</p>
-          <p class="ant-upload-hint">
-            支持单个文件上传，可上传 JPG/PNG/DICOM 格式
-          </p>
-        </a-upload-dragger>
+      <a-upload-dragger
+        v-model:fileList="fileList"
+        name="file"
+        :maxCount="1"
+        :beforeUpload="beforeUpload"
+        @change="handleFileChange"
+        accept=".jpg,.png,.dicom"
+      >
+        <p class="ant-upload-drag-icon">
+          <inbox-outlined />
+        </p>
+        <p class="ant-upload-text">点击或拖拽文件到此区域上传</p>
+        <p class="ant-upload-hint">
+          支持单个文件上传，可上传 JPG/PNG/DICOM 格式
+        </p>
+      </a-upload-dragger>
 
-        <div class="action-buttons" v-if="fileList.length > 0">
-          <a-button type="primary" :loading="detecting" @click="startDetection">
-            开始检测
-          </a-button>
-          <a-button @click="clearFile"> 清除图像 </a-button>
-        </div>
+      <div class="file-info" v-if="fileList.length">
+        <span>{{ fileList[0].name }}</span>
+        <a-button type="link" @click="clearFile">
+          <delete-outlined />
+        </a-button>
       </div>
 
-      <div class="preview-section" v-if="fileList.length > 0 || resultImage">
-        <div class="image-comparison">
-          <div class="image-box">
-            <h3>原始图像</h3>
-            <div class="image-wrapper">
-              <img v-if="imageUrl" :src="imageUrl" alt="原始图像" />
-              <div v-else class="placeholder">请上传图像</div>
-            </div>
-          </div>
+      <div class="action-buttons">
+        <a-button type="primary" @click="handleDetect" :loading="loading">
+          开始检测
+        </a-button>
+        <a-button @click="clearAll">清除图像</a-button>
+      </div>
 
-          <div class="image-box">
-            <h3>检测结果</h3>
-            <div class="image-wrapper">
-              <img v-if="resultImage" :src="resultImage" alt="检测结果" />
-              <div v-else class="placeholder">
-                {{ detecting ? "检测中..." : "等待检测" }}
-              </div>
-            </div>
-          </div>
+      <div class="image-preview" v-if="fileList.length || resultImage">
+        <div class="original-image">
+          <h3>原始图像</h3>
+          <img
+            v-if="previewUrl"
+            :src="previewUrl"
+            alt="原始图像"
+            style="max-width: 100%; height: auto; object-fit: contain"
+            @load="handleImageLoad"
+            @error="handleImageError"
+          />
         </div>
-
-        <div class="detection-info" v-if="detectionResult">
-          <a-descriptions title="检测信息" bordered>
-            <a-descriptions-item label="伪影区域数量">
-              {{ detectionResult.artifactCount }}
-            </a-descriptions-item>
-            <a-descriptions-item label="检测时间">
-              {{ detectionResult.processTime }}ms
-            </a-descriptions-item>
-            <a-descriptions-item label="置信度">
-              {{ detectionResult.confidence }}%
-            </a-descriptions-item>
-          </a-descriptions>
+        <div class="result-image">
+          <h3>检测结果</h3>
+          <img v-if="resultImage" :src="resultImage" alt="检测结果" />
         </div>
       </div>
     </div>
@@ -70,89 +57,83 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from "vue";
+import { ref, onBeforeUnmount } from "vue";
 import { message } from "ant-design-vue";
-import { InboxOutlined } from "@ant-design/icons-vue";
-import type { UploadChangeParam, UploadProps } from "ant-design-vue";
+import { InboxOutlined, DeleteOutlined } from "@ant-design/icons-vue";
+import { detectArtifact } from "@/api/artifact";
 
 const fileList = ref<any[]>([]);
-const imageUrl = ref<string>("");
-const resultImage = ref<string>("");
-const detecting = ref(false);
-const detectionResult = ref<any>(null);
+const previewUrl = ref("");
+const resultImage = ref("");
+const loading = ref(false);
 
-// 上传前验证
-const beforeUpload = (file: File) => {
-  const isJpgOrPng =
-    file.type === "image/jpeg" ||
-    file.type === "image/png" ||
-    file.type === "application/dicom";
-  if (!isJpgOrPng) {
-    message.error("只能上传 JPG/PNG/DICOM 格式的图片！");
-  }
-  const isLt10M = file.size / 1024 / 1024 < 10;
-  if (!isLt10M) {
-    message.error("图片必须小于 10MB！");
-  }
-  return isJpgOrPng && isLt10M;
+const beforeUpload = (_file: File) => {
+  // 阻止自动上传
+  return false;
 };
 
-// 处理文件改变
-const handleChange = (info: UploadChangeParam) => {
-  fileList.value = info.fileList.slice(-1);
+const handleImageLoad = () => {
+  console.log("图片加载成功");
+  message.success("图片预览加载成功");
+};
 
-  if (info.file.status === "done") {
-    getBase64(info.file.originFileObj as File, (url: string) => {
-      imageUrl.value = url;
-    });
+const handleImageError = (e: Event) => {
+  console.error("图片加载失败:", e);
+  message.error("图片预览加载失败");
+};
+
+const handleFileChange = (info: any) => {
+  const { file } = info;
+  // console.log("@@@@file@@@@@", file);
+  if (file) {
+    // 检查文件类型
+    const validTypes = ["image/jpeg", "image/png", "application/dicom"];
+    if (!validTypes.includes(file.type)) {
+      message.error("请上传 JPG/PNG/DICOM 格式的文件");
+      return;
+    }
+    // console.log("@@@@文件信息@@@@@", file);
+    previewUrl.value = URL.createObjectURL(file);
+    // console.log("@@@@previewUrl@@@@@", previewUrl.value);
+    fileList.value = [file];
   }
 };
 
-// 开始检测
-const startDetection = async () => {
+const clearFile = () => {
+  fileList.value = [];
+  previewUrl.value = "";
+  resultImage.value = "";
+};
+
+const clearAll = () => {
+  clearFile();
+};
+
+const handleDetect = async () => {
   if (!fileList.value.length) {
-    message.warning("请先上传图像");
+    message.warning("请先上传图片");
     return;
   }
 
-  detecting.value = true;
+  loading.value = true;
   try {
-    // TODO: 调用后端 API 进行检测
-    // const response = await detectArtifact(fileList.value[0].originFileObj);
-
-    // 模拟检测结果
-    await new Promise((resolve) => setTimeout(resolve, 2000));
-
-    detectionResult.value = {
-      artifactCount: 3,
-      processTime: 1234,
-      confidence: 95.6,
-    };
-
-    // resultImage.value = response.data.resultImage;
-    message.success("检测完成！");
+    const maskBase64 = await detectArtifact(fileList.value[0]);
+    // console.log("@@@@maskBase64@@@@@", maskBase64);
+    resultImage.value = `data:image/png;base64,${maskBase64}`;
+    message.success("检测完成");
   } catch (error) {
-    message.error("检测失败，请重试");
     console.error(error);
   } finally {
-    detecting.value = false;
+    loading.value = false;
   }
 };
 
-// 清除文件
-const clearFile = () => {
-  fileList.value = [];
-  imageUrl.value = "";
-  resultImage.value = "";
-  detectionResult.value = null;
-};
-
-// 将文件转换为 base64
-const getBase64 = (img: File, callback: (url: string) => void) => {
-  const reader = new FileReader();
-  reader.addEventListener("load", () => callback(reader.result as string));
-  reader.readAsDataURL(img);
-};
+// 组件卸载时清理 URL
+onBeforeUnmount(() => {
+  if (previewUrl.value && previewUrl.value.startsWith("blob:")) {
+    URL.revokeObjectURL(previewUrl.value);
+  }
+});
 </script>
 
 <style scoped>
@@ -171,73 +152,54 @@ const getBase64 = (img: File, callback: (url: string) => void) => {
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
 }
 
-.upload-section {
-  text-align: center;
+.subtitle {
+  color: #666;
   margin-bottom: 24px;
 }
 
-.upload-section h2 {
-  font-size: 24px;
-  color: #2c3e50;
-  margin-bottom: 8px;
-}
-
-.description {
-  color: #606f7b;
-  margin-bottom: 24px;
-}
-
-.action-buttons {
+.file-info {
   margin-top: 16px;
-  display: flex;
-  gap: 12px;
-  justify-content: center;
-}
-
-.preview-section {
-  margin-top: 32px;
-}
-
-.image-comparison {
-  display: flex;
-  gap: 24px;
-  margin-bottom: 24px;
-}
-
-.image-box {
-  flex: 1;
-  text-align: center;
-}
-
-.image-box h3 {
-  margin-bottom: 16px;
-  color: #2c3e50;
-}
-
-.image-wrapper {
-  border: 1px solid #e8e8e8;
-  border-radius: 4px;
-  padding: 8px;
-  min-height: 300px;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #fafafa;
+  gap: 8px;
 }
 
-.image-wrapper img {
+.action-buttons {
+  margin-top: 24px;
+  display: flex;
+  justify-content: center;
+  gap: 16px;
+}
+
+.image-preview {
+  margin-top: 32px;
+  display: flex;
+  gap: 32px;
+}
+
+.original-image,
+.result-image {
+  flex: 1;
+  text-align: center;
+  border: 1px solid #eee;
+  padding: 16px;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.original-image img,
+.result-image img {
   max-width: 100%;
   max-height: 400px;
   object-fit: contain;
+  margin: 0 auto;
+  display: block;
 }
 
-.placeholder {
-  color: #999;
-  font-size: 14px;
-}
-
-.detection-info {
-  margin-top: 24px;
+h3 {
+  margin-bottom: 16px;
+  color: #333;
 }
 
 :deep(.ant-upload-drag) {
@@ -245,12 +207,8 @@ const getBase64 = (img: File, callback: (url: string) => void) => {
 }
 
 @media (max-width: 768px) {
-  .image-comparison {
+  .image-preview {
     flex-direction: column;
-  }
-
-  .image-wrapper {
-    min-height: 200px;
   }
 }
 </style>

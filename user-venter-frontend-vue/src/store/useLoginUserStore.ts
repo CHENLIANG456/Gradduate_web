@@ -5,11 +5,14 @@ import { getCurrentUserInfo } from "@/api/user";
 interface LoginUser {
   userAccount: string;
   id?: number;
+  userRole: number;
+  // ... 其他用户信息字段
 }
 
 export const userLoginStore = defineStore("userLogin", () => {
   const loginUser = ref<LoginUser>({
     userAccount: "未登录",
+    userRole: 0,
   });
 
   // 获取用户信息
@@ -24,10 +27,24 @@ export const userLoginStore = defineStore("userLogin", () => {
   }
 
   // 设置用户信息
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  async function setUserInfo(newLoginUser: any) {
-    loginUser.value = newLoginUser;
-  }
+  const setLoginUser = (user: any) => {
+    loginUser.value = user;
+  };
 
-  return { loginUser, getUserInfo, setUserInfo };
+  // 清除用户信息
+  const clearLoginUser = () => {
+    loginUser.value = {
+      id: 0,
+      userAccount: "",
+      userRole: 0,
+      // ... 重置其他字段
+    };
+  };
+
+  return {
+    loginUser,
+    getUserInfo,
+    setLoginUser,
+    clearLoginUser,
+  };
 });

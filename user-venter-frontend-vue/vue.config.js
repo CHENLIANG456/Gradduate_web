@@ -13,5 +13,17 @@ module.exports = defineConfig({
         ws: true,
       },
     },
+    client: {
+      overlay: {
+        errors: true,
+        warnings: false,
+        runtimeErrors: (error) => {
+          if (error.message.includes("ResizeObserver")) {
+            return false;
+          }
+          return true;
+        },
+      },
+    },
   },
 });
