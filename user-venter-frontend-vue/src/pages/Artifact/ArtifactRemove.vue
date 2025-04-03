@@ -20,15 +20,16 @@
           name="file"
           :multiple="false"
           :before-upload="beforeUpload"
+          :customRequest="customRequest"
           @change="handleChange"
-          accept=".jpg,.jpeg,.png,.dcm"
+          accept=".jpg,.jpeg,.png"
         >
           <p class="ant-upload-drag-icon">
             <InboxOutlined />
           </p>
           <p class="ant-upload-text">点击或拖拽文件到此区域上传</p>
           <p class="ant-upload-hint">
-            支持单个文件上传，可上传 JPG/PNG/DICOM 格式
+            支持单个文件上传，可上传 JPG/PNG/JPEG 格式
           </p>
         </a-upload-dragger>
       </div>
@@ -39,11 +40,8 @@
           <a-form :model="processParams" layout="vertical">
             <a-form-item label="处理算法">
               <a-select v-model:value="processParams.algorithm">
-                <a-select-option value="algorithm1"
-                  >算法 1 (推荐)</a-select-option
-                >
-                <a-select-option value="algorithm2">算法 2</a-select-option>
-                <a-select-option value="algorithm3">算法 3</a-select-option>
+                <a-select-option value="algorithm1">CycleGan</a-select-option>
+                <a-select-option value="algorithm2">Diffusion</a-select-option>
               </a-select>
             </a-form-item>
 
@@ -52,11 +50,7 @@
                 v-model:value="processParams.intensity"
                 :min="1"
                 :max="100"
-                :marks="{
-                  1: '弱',
-                  50: '中',
-                  100: '强',
-                }"
+                :marks="{ 1: '弱', 50: '中', 100: '强' }"
               />
             </a-form-item>
 
@@ -183,50 +177,97 @@ const beforeUpload = (file: File) => {
     file.type === "image/png" ||
     file.type === "application/dicom";
   if (!isJpgOrPng) {
-    message.error("只能上传 JPG/PNG/DICOM 格式的图片！");
+    message.error("只能上传 JPG/PNG 格式的图片！");
   }
-  const isLt10M = file.size / 1024 / 1024 < 10;
+
+  const isLt10M = file.size / 1024 / 1024 < 20;
   if (!isLt10M) {
-    message.error("图片必须小于 10MB！");
+    message.error("图片必须小于 20MB！");
+    return false;
   }
+
   return isJpgOrPng && isLt10M;
+};
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const customRequest = (options: any) => {
+  const { onSuccess, file } = options;
+  // console.log("customRequest", options);
+
+  // 读取文件并设置图片预览
+  getBase64(file, (url: string) => {
+    imageUrl.value = url;
+
+    onSuccess({ status: "done", response: "OK" });
+
+    // 更新文件列表
+    fileList.value = [
+      {
+        uid: "1",
+        name: file.name,
+        status: "done",
+        url: url,
+        originFileObj: file,
+      },
+    ];
+  });
+  return {
+    abort() {
+      console.log("上传已取消");
+    },
+  };
 };
 
 // 处理文件改变
 const handleChange = (info: UploadChangeParam) => {
-  fileList.value = info.fileList.slice(-1);
-
-  if (info.file.status === "done") {
-    getBase64(info.file.originFileObj as File, (url: string) => {
-      imageUrl.value = url;
-    });
+  if (info.file.status !== "done") {
+    return;
   }
+
+  fileList.value = info.fileList.slice(-1); // 只保留最后一个文件
 };
 
 // 开始处理
 const startProcess = async () => {
+  // console.log("startProcess");
   processProgress.value = 0;
   processStatus.value = "active";
 
-  // 模拟处理进度
-  const timer = setInterval(() => {
-    if (processProgress.value < 100) {
-      processProgress.value += 10;
-      processStatusText.value = `处理中 ${processProgress.value}%`;
-    } else {
-      clearInterval(timer);
-      processStatus.value = "success";
-      processStatusText.value = "处理完成";
-      // TODO: 设置处理结果图像
-      resultImage.value = imageUrl.value; // 临时使用原图
-      nextStep();
-    }
-  }, 500);
+  const formData = new FormData();
+  formData.append("file", fileList.value[0].originFileObj);
+  formData.append("algorithm", processParams.value.algorithm);
+  formData.append("intensity", processParams.value.intensity.toString());
+  formData.append("quality", processParams.value.quality);
+
+  try {
+    const response = await fetch("http://localhost:7998/process_image", {
+      method: "POST",
+      body: formData,
+    });
+    console.log("response", response);
+
+    const result = await response.blob();
+    console.log("result", result);
+
+    resultImage.value = URL.createObjectURL(result);
+
+    processStatus.value = "success";
+    processStatusText.value = "处理完成";
+    nextStep();
+  } catch (error) {
+    message.error((error as Error).message);
+    processStatus.value = "exception";
+    processStatusText.value = "处理失败";
+  }
 };
 
 // 下载结果
 const downloadResult = () => {
   // TODO: 实现下载功能
+  const a = document.createElement("a");
+  a.href = resultImage.value;
+  a.download = "result.jpg";
+  a.click();
   message.success("开始下载");
 };
 
@@ -238,7 +279,9 @@ const saveToCloud = () => {
 
 // 步骤控制
 const nextStep = () => {
-  if (currentStep.value === 2) {
+  // console.log("nextStep", currentStep.value);
+  if (currentStep.value === 1) {
+    // console.log("startProcess");
     startProcess();
   }
   if (currentStep.value < 3) {

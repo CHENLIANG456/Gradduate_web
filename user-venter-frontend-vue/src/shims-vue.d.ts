@@ -4,3 +4,12 @@ declare module '*.vue' {
   const component: DefineComponent<{}, {}, any>
   export default component
 }
+
+// Add global component type declarations
+declare global {
+  namespace JSX {
+    interface IntrinsicElements {
+      [elem: string]: any
+    }
+  }
+}

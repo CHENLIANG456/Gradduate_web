@@ -17,12 +17,12 @@ export const userLoginStore = defineStore("userLogin", () => {
 
   // 获取用户信息
   async function getUserInfo() {
-    console.log("getUserInfo@@@");
+    // console.log("getUserInfo@@@");
     const res = await getCurrentUserInfo();
-    console.log("res@@@", res);
+    // console.log("res@@@", res);
     if (res.data.code === 0 && res.data.data) {
       loginUser.value = res.data.data;
-      console.log("loginUser@@@", loginUser.value);
+      // console.log("loginUser@@@", loginUser.value);
     }
   }
 
