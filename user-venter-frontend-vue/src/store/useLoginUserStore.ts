@@ -37,7 +37,6 @@ export const userLoginStore = defineStore("userLogin", () => {
       id: 0,
       userAccount: "",
       userRole: 0,
-      // ... 重置其他字段
     };
   };
 

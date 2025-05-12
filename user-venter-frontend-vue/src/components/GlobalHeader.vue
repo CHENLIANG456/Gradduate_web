@@ -3,7 +3,7 @@
     <a-row :wrap="false">
       <a-col flex="200px">
         <div class="logo">
-          <img class="logo-img" src="@/assets/logo.png" alt="logo" />
+          <img class="logo-img" src="@/assets/口腔科.png" alt="logo" />
           <span class="logo-text">CBCT 牙科影像优化系统</span>
         </div>
       </a-col>
@@ -15,12 +15,12 @@
           @click="handleMenuClick"
         />
       </a-col>
-      <a-col flex="80px">
+      <a-col flex="200px">
         <div class="user-login-status">
           <div v-if="store.loginUser.id" class="user-info">
             <a-dropdown>
               <a class="ant-dropdown-link" @click.prevent>
-                {{ store.loginUser.userAccount }}
+                <span>欢迎，{{ store.loginUser.userAccount }}</span>
                 <DownOutlined />
               </a>
               <template #overlay>
@@ -134,16 +134,26 @@ const handleLogout = () => {
   message.success("退出成功");
 };
 </script>
+
 <style scoped>
 #global-header .logo .logo-img {
   width: 20px;
   margin-right: 10px;
 }
 
+.user-login-status {
+  display: flex;
+  justify-content: flex-start;
+  align-items: center;
+  height: 100%;
+  padding-left: 16px;
+}
+
 .user-info {
   display: flex;
   align-items: center;
   cursor: pointer;
+  max-width: 180px;
 }
 
 .ant-dropdown-link {
@@ -151,6 +161,7 @@ const handleLogout = () => {
   display: flex;
   align-items: center;
   gap: 4px;
+  white-space: nowrap;
 }
 
 .ant-dropdown-link:hover {

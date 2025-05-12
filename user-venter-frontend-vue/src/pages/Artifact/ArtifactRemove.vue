@@ -7,41 +7,27 @@
       </div>
 
       <a-steps :current="currentStep" class="process-steps">
-        <a-step title="上传图像" />
         <a-step title="参数设置" />
+        <a-step v-if="showUploadStep" title="上传图像" />
         <a-step title="处理中" />
         <a-step title="结果导出" />
       </a-steps>
 
-      <!-- 步骤1：上传图像 -->
+      <!-- 步骤1：参数设置 -->
       <div v-if="currentStep === 0" class="step-content">
-        <a-upload-dragger
-          v-model:fileList="fileList"
-          name="file"
-          :multiple="false"
-          :before-upload="beforeUpload"
-          :customRequest="customRequest"
-          @change="handleChange"
-          accept=".jpg,.jpeg,.png"
-        >
-          <p class="ant-upload-drag-icon">
-            <InboxOutlined />
-          </p>
-          <p class="ant-upload-text">点击或拖拽文件到此区域上传</p>
-          <p class="ant-upload-hint">
-            支持单个文件上传，可上传 JPG/PNG/JPEG 格式
-          </p>
-        </a-upload-dragger>
-      </div>
-
-      <!-- 步骤2：参数设置 -->
-      <div v-if="currentStep === 1" class="step-content">
         <div class="params-section">
           <a-form :model="processParams" layout="vertical">
             <a-form-item label="处理算法">
-              <a-select v-model:value="processParams.algorithm">
-                <a-select-option value="algorithm1">CycleGan</a-select-option>
-                <a-select-option value="algorithm2">Diffusion</a-select-option>
+              <a-select
+                v-model:value="processParams.algorithm"
+                @change="handleAlgorithmChange"
+              >
+                <a-select-option value="algorithm1"
+                  >CycleGan（需要上传图片）</a-select-option
+                >
+                <a-select-option value="algorithm2"
+                  >Diffusion（无需上传图片）</a-select-option
+                >
               </a-select>
             </a-form-item>
 
@@ -65,8 +51,35 @@
         </div>
       </div>
 
+      <!-- 步骤2：上传图像 (仅算法1显示) -->
+      <div v-if="currentStep === 1 && showUploadStep" class="step-content">
+        <a-upload-dragger
+          v-model:fileList="fileList"
+          name="file"
+          :multiple="false"
+          :before-upload="beforeUpload"
+          :customRequest="customRequest"
+          @change="handleChange"
+          accept=".jpg,.jpeg,.png"
+        >
+          <p class="ant-upload-drag-icon">
+            <InboxOutlined />
+          </p>
+          <p class="ant-upload-text">点击或拖拽文件到此区域上传</p>
+          <p class="ant-upload-hint">
+            支持单个文件上传，可上传 JPG/PNG/JPEG 格式
+          </p>
+        </a-upload-dragger>
+      </div>
+
       <!-- 步骤3：处理中 -->
-      <div v-if="currentStep === 2" class="step-content">
+      <div
+        v-if="
+          (showUploadStep && currentStep === 2) ||
+          (!showUploadStep && currentStep === 1)
+        "
+        class="step-content"
+      >
         <div class="processing-status">
           <a-progress
             :percent="processProgress"
@@ -78,16 +91,22 @@
       </div>
 
       <!-- 步骤4：结果展示 -->
-      <div v-if="currentStep === 3" class="step-content">
+      <div
+        v-if="
+          (showUploadStep && currentStep === 3) ||
+          (!showUploadStep && currentStep === 2)
+        "
+        class="step-content"
+      >
         <div class="result-comparison">
-          <div class="image-box">
+          <div class="image-box" v-if="showUploadStep">
             <h3>原始图像</h3>
             <div class="image-wrapper">
               <img v-if="imageUrl" :src="imageUrl" alt="原始图像" />
             </div>
           </div>
 
-          <div class="image-box">
+          <div class="image-box" :class="{ 'full-width': !showUploadStep }">
             <h3>处理结果</h3>
             <div class="image-wrapper">
               <img v-if="resultImage" :src="resultImage" alt="处理结果" />
@@ -113,12 +132,17 @@
       <div class="step-actions">
         <a-button v-if="currentStep > 0" @click="prevStep"> 上一步 </a-button>
         <a-button
-          v-if="currentStep < 3"
+          v-if="currentStep < (showUploadStep ? 3 : 2)"
           type="primary"
           @click="nextStep"
           :disabled="!canProceed"
         >
-          {{ currentStep === 2 ? "处理中..." : "下一步" }}
+          {{
+            (showUploadStep && currentStep === 2) ||
+            (!showUploadStep && currentStep === 1)
+              ? "处理中..."
+              : "下一步"
+          }}
         </a-button>
       </div>
     </div>
@@ -126,7 +150,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from "vue";
+import { ref, computed, watchEffect } from "vue";
 import { message } from "ant-design-vue";
 import {
   InboxOutlined,
@@ -137,6 +161,11 @@ import type { UploadChangeParam } from "ant-design-vue";
 
 // 当前步骤
 const currentStep = ref(0);
+
+// 是否显示上传步骤（算法1需要，算法2不需要）
+const showUploadStep = computed(
+  () => processParams.value.algorithm === "algorithm1"
+);
 
 // 文件相关
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -156,17 +185,38 @@ const processProgress = ref(0);
 const processStatus = ref<"active" | "success" | "exception">("active");
 const processStatusText = ref("准备处理...");
 
+// 处理算法变更
+const handleAlgorithmChange = (value: string) => {
+  if (value === "algorithm2") {
+    // 如果切换到算法2，重置步骤到参数设置
+    currentStep.value = 0;
+  }
+};
+
 // 是否可以进行下一步
 const canProceed = computed(() => {
-  switch (currentStep.value) {
-    case 0:
-      return fileList.value.length > 0;
-    case 1:
-      return true;
-    case 2:
-      return processProgress.value === 100;
-    default:
-      return true;
+  if (!showUploadStep.value) {
+    // 算法2的流程
+    switch (currentStep.value) {
+      case 0: // 参数设置
+        return true;
+      case 1: // 处理中
+        return processProgress.value === 100;
+      default:
+        return true;
+    }
+  } else {
+    // 算法1的流程
+    switch (currentStep.value) {
+      case 0: // 参数设置
+        return true;
+      case 1: // 上传图像
+        return fileList.value.length > 0;
+      case 2: // 处理中
+        return processProgress.value === 100;
+      default:
+        return true;
+    }
   }
 });
 
@@ -192,7 +242,6 @@ const beforeUpload = (file: File) => {
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const customRequest = (options: any) => {
   const { onSuccess, file } = options;
-  // console.log("customRequest", options);
 
   // 读取文件并设置图片预览
   getBase64(file, (url: string) => {
@@ -229,28 +278,49 @@ const handleChange = (info: UploadChangeParam) => {
 
 // 开始处理
 const startProcess = async () => {
-  // console.log("startProcess");
   processProgress.value = 0;
   processStatus.value = "active";
+  processStatusText.value = "处理中...";
 
-  const formData = new FormData();
-  formData.append("file", fileList.value[0].originFileObj);
-  formData.append("algorithm", processParams.value.algorithm);
-  formData.append("intensity", processParams.value.intensity.toString());
-  formData.append("quality", processParams.value.quality);
+  // 根据选择的算法决定调用哪个API
+  const apiEndpoint =
+    processParams.value.algorithm === "algorithm2"
+      ? "http://localhost:7997/process_image" // 使用您的新Flask API
+      : "http://localhost:7998/process_image"; // 原始API端点
 
   try {
-    const response = await fetch("http://localhost:7998/process_image", {
-      method: "POST",
-      body: formData,
-    });
+    let response;
+
+    if (processParams.value.algorithm === "algorithm2") {
+      // 算法2不需要图片，只需要处理参数
+      const formData = new FormData();
+      formData.append("intensity", processParams.value.intensity.toString());
+      formData.append("quality", processParams.value.quality);
+
+      response = await fetch(apiEndpoint, {
+        method: "POST",
+        body: formData,
+      });
+    } else {
+      // 算法1需要上传图片
+      const formData = new FormData();
+      formData.append("file", fileList.value[0].originFileObj);
+      formData.append("algorithm", processParams.value.algorithm);
+      formData.append("intensity", processParams.value.intensity.toString());
+      formData.append("quality", processParams.value.quality);
+
+      response = await fetch(apiEndpoint, {
+        method: "POST",
+        body: formData,
+      });
+    }
+
     console.log("response", response);
 
     const result = await response.blob();
-    console.log("result", result);
-
     resultImage.value = URL.createObjectURL(result);
 
+    processProgress.value = 100;
     processStatus.value = "success";
     processStatusText.value = "处理完成";
     nextStep();
@@ -263,7 +333,6 @@ const startProcess = async () => {
 
 // 下载结果
 const downloadResult = () => {
-  // TODO: 实现下载功能
   const a = document.createElement("a");
   a.href = resultImage.value;
   a.download = "result.jpg";
@@ -279,13 +348,24 @@ const saveToCloud = () => {
 
 // 步骤控制
 const nextStep = () => {
-  // console.log("nextStep", currentStep.value);
-  if (currentStep.value === 1) {
-    // console.log("startProcess");
-    startProcess();
-  }
-  if (currentStep.value < 3) {
-    currentStep.value += 1;
+  if (!showUploadStep.value) {
+    // 算法2的流程（无需上传图片）
+    if (currentStep.value === 0) {
+      // 从参数设置直接到处理中
+      startProcess();
+    }
+    if (currentStep.value < 2) {
+      currentStep.value += 1;
+    }
+  } else {
+    // 算法1的流程（需要上传图片）
+    if (currentStep.value === 1) {
+      // 上传图片后开始处理
+      startProcess();
+    }
+    if (currentStep.value < 3) {
+      currentStep.value += 1;
+    }
   }
 };
 
@@ -402,6 +482,11 @@ const getBase64 = (img: File, callback: (url: string) => void) => {
   margin-top: 24px;
   padding-top: 24px;
   border-top: 1px solid #e8e8e8;
+}
+
+.full-width {
+  flex: 1;
+  width: 100%;
 }
 
 @media (max-width: 768px) {

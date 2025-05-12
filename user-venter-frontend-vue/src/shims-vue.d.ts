@@ -12,4 +12,9 @@ declare global {
       [elem: string]: any
     }
   }
+  
+  // Vue Language Server internal types
+  const __VLS_NormalizeEmits: any;
+  const __VLS_intrinsicElements: any;
+  const __VLS_functionalComponentArgsRest: any;
 }

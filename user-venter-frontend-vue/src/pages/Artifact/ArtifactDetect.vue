@@ -10,15 +10,13 @@
         :maxCount="1"
         :beforeUpload="beforeUpload"
         @change="handleFileChange"
-        accept=".jpg,.png,.dicom"
+        accept=".jpg,.png"
       >
         <p class="ant-upload-drag-icon">
           <inbox-outlined />
         </p>
         <p class="ant-upload-text">点击或拖拽文件到此区域上传</p>
-        <p class="ant-upload-hint">
-          支持单个文件上传，可上传 JPG/PNG/DICOM 格式
-        </p>
+        <p class="ant-upload-hint">支持单个文件上传，可上传 JPG/PNG 格式</p>
       </a-upload-dragger>
 
       <div class="file-info" v-if="fileList.length">
@@ -33,6 +31,12 @@
           开始检测
         </a-button>
         <a-button @click="clearAll">清除图像</a-button>
+        <a-button
+          type="primary"
+          @click="saveToCurrentDir"
+          :disabled="!resultImage"
+          >保存到指定目录
+        </a-button>
       </div>
 
       <div class="image-preview" v-if="fileList.length || resultImage">
@@ -49,7 +53,12 @@
         </div>
         <div class="result-image">
           <h3>检测结果</h3>
-          <img v-if="resultImage" :src="resultImage" alt="检测结果" />
+          <img
+            v-if="resultImage"
+            :src="resultImage"
+            alt="检测结果"
+            style="max-width: 100%; height: auto; object-fit: contain"
+          />
         </div>
       </div>
     </div>
@@ -59,6 +68,7 @@
 <script setup lang="ts">
 import { ref, onBeforeUnmount } from "vue";
 import { message } from "ant-design-vue";
+import axios from "axios";
 import { InboxOutlined, DeleteOutlined } from "@ant-design/icons-vue";
 import { detectArtifact } from "@/api/artifact";
 
@@ -66,6 +76,7 @@ const fileList = ref<any[]>([]);
 const previewUrl = ref("");
 const resultImage = ref("");
 const loading = ref(false);
+const saveLoading = ref(false);
 
 const beforeUpload = (_file: File) => {
   // 阻止自动上传
@@ -84,17 +95,14 @@ const handleImageError = (e: Event) => {
 
 const handleFileChange = (info: any) => {
   const { file } = info;
-  // console.log("@@@@file@@@@@", file);
   if (file) {
     // 检查文件类型
-    const validTypes = ["image/jpeg", "image/png", "application/dicom"];
+    const validTypes = ["image/jpeg", "image/png"];
     if (!validTypes.includes(file.type)) {
-      message.error("请上传 JPG/PNG/DICOM 格式的文件");
+      message.error("请上传 JPG/PNG 格式的文件");
       return;
     }
-    // console.log("@@@@文件信息@@@@@", file);
     previewUrl.value = URL.createObjectURL(file);
-    // console.log("@@@@previewUrl@@@@@", previewUrl.value);
     fileList.value = [file];
   }
 };
@@ -118,7 +126,6 @@ const handleDetect = async () => {
   loading.value = true;
   try {
     const maskBase64 = await detectArtifact(fileList.value[0]);
-    // console.log("@@@@maskBase64@@@@@", maskBase64);
     resultImage.value = `data:image/png;base64,${maskBase64}`;
     message.success("检测完成");
   } catch (error) {
@@ -134,6 +141,76 @@ onBeforeUnmount(() => {
     URL.revokeObjectURL(previewUrl.value);
   }
 });
+
+// 辅助函数：将File对象转换为base64字符串
+const fileToBase64 = (file) => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = () => {
+      // 分割获取base64数据部分
+      const dataUrl = reader.result;
+      const base64Data =
+        typeof dataUrl === "string" ? dataUrl.split(",")[1] : null;
+      resolve(base64Data);
+    };
+    reader.onerror = (error) => {
+      console.error("文件读取错误:", error);
+      reject(error);
+    };
+  });
+};
+
+// 保存原始图片和检测结果到当前目录
+const saveToCurrentDir = async () => {
+  if (!resultImage.value) {
+    message.warning("没有检测结果可保存");
+    return;
+  }
+  saveLoading.value = true;
+
+  try {
+    // 提取 base64 数据
+    const resultBase64Data = resultImage.value.split(",")[1];
+    if (!resultBase64Data) {
+      message.error("无法提取 base64 数据");
+      return;
+    }
+
+    // 获取原始文件名
+    const originalFileName = fileList.value[0].name;
+    const fileNameWithoutExt =
+      originalFileName.substring(0, originalFileName.lastIndexOf(".")) ||
+      originalFileName;
+    const resultFileName = `${fileNameWithoutExt}_result.png`;
+
+    const originalBase64Data = await fileToBase64(fileList.value[0]);
+
+    const response = await axios.post(
+      "http://localhost:8081/api/file/saveToCurrentDir",
+      {
+        resultBase64Data: resultBase64Data,
+        resultFileName: resultFileName,
+        originalBase64Data: originalBase64Data,
+        originalFileName: originalFileName,
+      },
+      {
+        withCredentials: true,
+      }
+    );
+
+    if (response.data.code === 0) {
+      message.success("已保存到当前目录");
+    } else {
+      message.error(response.data.message || "保存失败");
+    }
+  } catch (error) {
+    console.error("保存到当前目录出错:", error);
+    message.error("保存失败，请重试");
+  } finally {
+    saveLoading.value = false;
+  }
+};
 </script>
 
 <style scoped>

@@ -65,7 +65,7 @@
             登录
           </a-button>
           <div class="register-link">
-            还没有账号？ <a href="/user/register">立即注册</a>
+            还没有账号？ <a @click="handleRegister">立即注册</a>
           </div>
         </a-form-item>
       </a-form>
@@ -103,8 +103,6 @@ const handleSubmit = async (values: FormState) => {
       userPassword: formState.userPassword,
     });
 
-    console.log("登录响应:", res); // 检查响应数据
-
     if (res.data.code === 0 && res.data.data) {
       await userLoginStores.getUserInfo();
       message.success("登录成功");
@@ -119,6 +117,10 @@ const handleSubmit = async (values: FormState) => {
     console.error("登录错误:", error); // 检查错误信息
     message.error(error.description || "登录请求失败");
   }
+};
+
+const handleRegister = () => {
+  router.push("/user/register");
 };
 
 const onFinishFailed = (errorInfo: any) => {
